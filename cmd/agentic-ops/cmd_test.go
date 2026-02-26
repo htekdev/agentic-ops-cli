@@ -121,7 +121,7 @@ func TestValidateCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -168,7 +168,7 @@ func TestValidateCommandDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -192,15 +192,15 @@ steps:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	validateCmd.Flags().Set("file", "")
-	validateCmd.Flags().Set("dir", tmpDir)
+	_ = validateCmd.Flags().Set("file", "")
+	_ = validateCmd.Flags().Set("dir", tmpDir)
 	err = validateCmd.RunE(validateCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	_ = buf.String()
 
 	if err != nil {
@@ -214,22 +214,22 @@ func TestRunCommandEmptyEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	runCmd.Flags().Set("event", "")
-	runCmd.Flags().Set("workflow", "")
-	runCmd.Flags().Set("dir", tmpDir)
+	_ = runCmd.Flags().Set("event", "")
+	_ = runCmd.Flags().Set("workflow", "")
+	_ = runCmd.Flags().Set("dir", tmpDir)
 	err = runCmd.RunE(runCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -248,7 +248,7 @@ func TestRunCommandWithEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	eventJSON := `{"tool":{"name":"edit","args":{"path":"test.go"}}}`
 
@@ -256,16 +256,16 @@ func TestRunCommandWithEvent(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	runCmd.Flags().Set("event", eventJSON)
-	runCmd.Flags().Set("workflow", "")
-	runCmd.Flags().Set("dir", tmpDir)
+	_ = runCmd.Flags().Set("event", eventJSON)
+	_ = runCmd.Flags().Set("workflow", "")
+	_ = runCmd.Flags().Set("dir", tmpDir)
 	err = runCmd.RunE(runCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -283,11 +283,11 @@ func TestRunCommandInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	runCmd.Flags().Set("event", "not valid json")
-	runCmd.Flags().Set("workflow", "")
-	runCmd.Flags().Set("dir", tmpDir)
+	_ = runCmd.Flags().Set("event", "not valid json")
+	_ = runCmd.Flags().Set("workflow", "")
+	_ = runCmd.Flags().Set("dir", tmpDir)
 	err = runCmd.RunE(runCmd, []string{})
 
 	if err == nil {
@@ -304,11 +304,11 @@ func TestRunCommandNonexistentWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	runCmd.Flags().Set("event", "")
-	runCmd.Flags().Set("workflow", "nonexistent")
-	runCmd.Flags().Set("dir", tmpDir)
+	_ = runCmd.Flags().Set("event", "")
+	_ = runCmd.Flags().Set("workflow", "nonexistent")
+	_ = runCmd.Flags().Set("dir", tmpDir)
 	err = runCmd.RunE(runCmd, []string{})
 
 	if err == nil {
@@ -332,7 +332,7 @@ func TestOutputWorkflowResult(t *testing.T) {
 
 	err := outputWorkflowResult(result)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -340,7 +340,7 @@ func TestOutputWorkflowResult(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify it's valid JSON
@@ -360,7 +360,7 @@ func TestFindWorkflowFileYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -394,7 +394,7 @@ func TestRunWorkflowFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -419,11 +419,11 @@ steps:
 
 	err = runWorkflow(tmpDir, "test")
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -441,7 +441,7 @@ func TestRunMatchingWorkflowsWithMatchingWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -470,11 +470,11 @@ steps:
 
 	err = runMatchingWorkflows(tmpDir, eventJSON)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -492,7 +492,7 @@ func TestRunMatchingWorkflowsNoMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -521,11 +521,11 @@ steps:
 
 	err = runMatchingWorkflows(tmpDir, eventJSON)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -544,7 +544,7 @@ func TestRunMatchingWorkflowsEmptyDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -559,11 +559,11 @@ func TestRunMatchingWorkflowsEmptyDir(t *testing.T) {
 
 	err = runMatchingWorkflows(tmpDir, eventJSON)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -674,15 +674,15 @@ func TestValidateCommandDefaultDir(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	validateCmd.Flags().Set("file", "")
-	validateCmd.Flags().Set("dir", "")
+	_ = validateCmd.Flags().Set("file", "")
+	_ = validateCmd.Flags().Set("dir", "")
 	_ = validateCmd.RunE(validateCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	// Just verify it runs without panic - actual validation depends on cwd content
 }
 
@@ -692,15 +692,16 @@ func TestRunCommandDefaultDir(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	runCmd.Flags().Set("event", "")
-	runCmd.Flags().Set("workflow", "")
-	runCmd.Flags().Set("dir", "")
+	_ = runCmd.Flags().Set("event", "")
+	_ = runCmd.Flags().Set("workflow", "")
+	_ = runCmd.Flags().Set("dir", "")
 	_ = runCmd.RunE(runCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	// Just verify it runs - results depend on cwd content
 }
+

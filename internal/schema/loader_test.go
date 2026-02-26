@@ -444,7 +444,7 @@ func TestValidateWorkflow_MalformedYAML_TabsInsteadOfSpaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	content := "name: Test\non:\n\thooks:\n\t\ttypes:\n\t\t\t- preToolUse\nsteps:\n\t- run: echo\n"
 	tmpFile := filepath.Join(tmpDir, "tabs.yml")
@@ -463,7 +463,7 @@ func TestValidateWorkflow_MalformedYAML_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	tmpFile := filepath.Join(tmpDir, "empty.yml")
 	if err := os.WriteFile(tmpFile, []byte(""), 0644); err != nil {
@@ -481,7 +481,7 @@ func TestValidateWorkflow_MalformedYAML_OnlyComments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	content := `# This is only comments
 # No actual content
@@ -511,7 +511,7 @@ func TestValidateWorkflow_ReadPermissionError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	tmpFile := filepath.Join(tmpDir, "no-read.yml")
 	if err := os.WriteFile(tmpFile, []byte("name: test"), 0000); err != nil {
@@ -534,7 +534,7 @@ func TestValidateWorkflowsInDir_MixedValidInvalid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -567,7 +567,7 @@ func TestValidateWorkflowsInDir_NestedWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	nestedDir := filepath.Join(workflowDir, "nested")
@@ -591,7 +591,7 @@ func TestValidateWorkflowsInDir_IgnoresNonYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -617,7 +617,7 @@ func TestValidateWorkflowsInDir_YAMLExtensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -729,7 +729,7 @@ func TestValidationResult_MultipleErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Workflow with multiple validation issues
 	content := `name: ""
@@ -764,3 +764,4 @@ func assertHasValidationError(t *testing.T, result *ValidationResult) {
 		t.Error("Expected at least one validation error, got none")
 	}
 }
+
