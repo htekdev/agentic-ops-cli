@@ -183,7 +183,7 @@ func (r *Runner) Run(ctx context.Context) ([]StepResult, error) {
 }
 
 // RunWithBlocking executes all steps and returns a WorkflowResult based on blocking mode
-// If blocking=true and any step fails, returns a deny result
+// If blocking=true and any step fails, returns a deny result with detailed logs
 // If blocking=false, returns an allow result even if steps fail (logs warnings instead)
 func (r *Runner) RunWithBlocking(ctx context.Context) *schema.WorkflowResult {
 	results, err := r.Run(ctx)
@@ -211,15 +211,13 @@ func (r *Runner) RunWithBlocking(ctx context.Context) *schema.WorkflowResult {
 
 	// Steps failed - decision depends on blocking mode
 	if r.workflow.IsBlocking() {
-		// Blocking mode: deny on any failure
-		failedSteps := []string{}
-		for _, result := range results {
-			if !result.Success {
-				failedSteps = append(failedSteps, result.Name)
-			}
+		// Blocking mode: deny on any failure with detailed logs
+		logFile, reason := r.buildDenialWithLogs(results)
+		result := schema.NewDenyResult(reason)
+		if logFile != "" {
+			result.LogFile = logFile
 		}
-		reason := fmt.Sprintf("workflow blocked due to step failures: %s", strings.Join(failedSteps, ", "))
-		return schema.NewDenyResult(reason)
+		return result
 	}
 
 	// Non-blocking mode: log warnings but allow
@@ -229,6 +227,82 @@ func (r *Runner) RunWithBlocking(ctx context.Context) *schema.WorkflowResult {
 		}
 	}
 	return schema.NewAllowResult()
+}
+
+// buildDenialWithLogs creates a detailed log file and returns the path and denial reason
+func (r *Runner) buildDenialWithLogs(results []StepResult) (logFile string, reason string) {
+	var failedSteps []string
+	var logContent strings.Builder
+
+	// Header
+	logContent.WriteString(fmt.Sprintf("Workflow: %s\n", r.workflow.Name))
+	logContent.WriteString(fmt.Sprintf("Description: %s\n", r.workflow.Description))
+	logContent.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC3339)))
+	logContent.WriteString(strings.Repeat("=", 60) + "\n\n")
+
+	// Write each step's result
+	for _, result := range results {
+		logContent.WriteString(fmt.Sprintf("Step: %s\n", result.Name))
+		logContent.WriteString(fmt.Sprintf("Status: %s\n", map[bool]string{true: "✓ SUCCESS", false: "✗ FAILED"}[result.Success]))
+		if result.Duration > 0 {
+			logContent.WriteString(fmt.Sprintf("Duration: %s\n", result.Duration.Round(time.Millisecond)))
+		}
+		if result.Error != nil {
+			logContent.WriteString(fmt.Sprintf("Error: %v\n", result.Error))
+		}
+		if result.Output != "" {
+			logContent.WriteString("Output:\n")
+			// Indent the output
+			for _, line := range strings.Split(strings.TrimSpace(result.Output), "\n") {
+				logContent.WriteString("  " + line + "\n")
+			}
+		}
+		logContent.WriteString(strings.Repeat("-", 40) + "\n\n")
+
+		if !result.Success {
+			failedSteps = append(failedSteps, result.Name)
+		}
+	}
+
+	// Write to temp file
+	tmpFile, err := os.CreateTemp("", "agentic-ops-*.log")
+	if err != nil {
+		// Can't create temp file, return reason without log file
+		return "", fmt.Sprintf("workflow '%s' blocked due to step failures: %s", r.workflow.Name, strings.Join(failedSteps, ", "))
+	}
+	defer tmpFile.Close()
+
+	_, err = tmpFile.WriteString(logContent.String())
+	if err != nil {
+		return "", fmt.Sprintf("workflow '%s' blocked due to step failures: %s", r.workflow.Name, strings.Join(failedSteps, ", "))
+	}
+
+	logFile = tmpFile.Name()
+
+	// Build detailed reason message
+	var reasonBuilder strings.Builder
+	reasonBuilder.WriteString(fmt.Sprintf("Workflow '%s' blocked.\n\n", r.workflow.Name))
+	reasonBuilder.WriteString("Failed steps:\n")
+	for _, result := range results {
+		if !result.Success {
+			reasonBuilder.WriteString(fmt.Sprintf("  • %s", result.Name))
+			if result.Error != nil {
+				reasonBuilder.WriteString(fmt.Sprintf(": %v", result.Error))
+			}
+			reasonBuilder.WriteString("\n")
+			// Include brief output snippet (first 200 chars)
+			if result.Output != "" {
+				output := strings.TrimSpace(result.Output)
+				if len(output) > 200 {
+					output = output[:200] + "..."
+				}
+				reasonBuilder.WriteString(fmt.Sprintf("    Output: %s\n", strings.ReplaceAll(output, "\n", " ")))
+			}
+		}
+	}
+	reasonBuilder.WriteString(fmt.Sprintf("\nFull logs: %s", logFile))
+
+	return logFile, reasonBuilder.String()
 }
 
 // runStep executes a single step

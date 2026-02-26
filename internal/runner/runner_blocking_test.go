@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/htekdev/agentic-ops-cli/internal/schema"
@@ -141,4 +142,71 @@ func contains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestRunWithBlockingCreatesLogFile tests that denial creates a log file with step outputs
+func TestRunWithBlockingCreatesLogFile(t *testing.T) {
+	workflow := &schema.Workflow{
+		Name:        "test-logs",
+		Description: "Test workflow for log output",
+		Blocking:    ptrBool(true),
+		Steps: []schema.Step{
+			{
+				Name: "echo-step",
+				Run:  "echo 'test output'",
+			},
+			{
+				Name: "fail-step",
+				Run:  "echo 'failure message' && exit 1",
+			},
+		},
+	}
+
+	runner := NewRunner(workflow, nil, ".")
+	ctx := context.Background()
+	result := runner.RunWithBlocking(ctx)
+
+	if result.PermissionDecision != "deny" {
+		t.Errorf("Expected deny, got %s", result.PermissionDecision)
+	}
+
+	// Check that log file was created
+	if result.LogFile == "" {
+		t.Error("Expected LogFile to be set")
+	}
+
+	// Check that reason mentions the log file
+	if !contains(result.PermissionDecisionReason, result.LogFile) {
+		t.Errorf("Expected reason to mention log file path, got: %s", result.PermissionDecisionReason)
+	}
+
+	// Verify log file exists and has content
+	if result.LogFile != "" {
+		content, err := os.ReadFile(result.LogFile)
+		if err != nil {
+			t.Errorf("Failed to read log file: %v", err)
+		}
+		logContent := string(content)
+
+		// Should contain workflow name
+		if !contains(logContent, "test-logs") {
+			t.Error("Log should contain workflow name")
+		}
+
+		// Should contain step names
+		if !contains(logContent, "echo-step") {
+			t.Error("Log should contain echo-step")
+		}
+		if !contains(logContent, "fail-step") {
+			t.Error("Log should contain fail-step")
+		}
+
+		// Should contain output
+		if !contains(logContent, "test output") {
+			t.Error("Log should contain step output")
+		}
+
+		// Clean up
+		os.Remove(result.LogFile)
+	}
 }
