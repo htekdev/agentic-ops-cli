@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/htekdev/agentic-ops-cli/internal/discover"
+	"github.com/htekdev/agentic-ops-cli/internal/event"
 	"github.com/htekdev/agentic-ops-cli/internal/runner"
 	"github.com/htekdev/agentic-ops-cli/internal/schema"
 	"github.com/htekdev/agentic-ops-cli/internal/trigger"
@@ -131,11 +132,17 @@ var validateCmd = &cobra.Command{
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run workflows for an event",
-	Long:  `Executes matching workflows based on the provided event payload.`,
+	Long: `Executes matching workflows based on the provided event payload.
+
+Use --raw to pass raw Copilot hook input (toolName, toolArgs, cwd) and let the CLI
+detect the event type automatically. This is the preferred mode for hook scripts.
+
+Use --event to pass a pre-built event JSON (legacy mode).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		event, _ := cmd.Flags().GetString("event")
+		eventStr, _ := cmd.Flags().GetString("event")
 		workflow, _ := cmd.Flags().GetString("workflow")
 		dir, _ := cmd.Flags().GetString("dir")
+		raw, _ := cmd.Flags().GetBool("raw")
 
 		if dir == "" {
 			var err error
@@ -150,8 +157,13 @@ var runCmd = &cobra.Command{
 			return runWorkflow(dir, workflow)
 		}
 
-		// If no workflow specified, discover and run matching workflows
-		return runMatchingWorkflows(dir, event)
+		// If --raw flag is set, use the new event detection
+		if raw {
+			return runWithRawInput(dir, eventStr)
+		}
+
+		// Legacy mode: pre-built event JSON
+		return runMatchingWorkflows(dir, eventStr)
 	},
 }
 
@@ -187,6 +199,7 @@ func init() {
 	runCmd.Flags().StringP("event", "e", "", "Event JSON (use '-' for stdin)")
 	runCmd.Flags().StringP("workflow", "w", "", "Specific workflow to run")
 	runCmd.Flags().StringP("dir", "d", "", "Directory to search (default: current directory)")
+	runCmd.Flags().BoolP("raw", "r", false, "Accept raw hook input and auto-detect event type")
 }
 
 // runWorkflow loads and executes a specific workflow
@@ -210,6 +223,126 @@ func runWorkflow(dir, workflowName string) error {
 
 	// Output the result as JSON
 	return outputWorkflowResult(result)
+}
+
+// runWithRawInput handles raw Copilot hook input and auto-detects event type
+func runWithRawInput(dir, inputStr string) error {
+	// Read from stdin if "-"
+	var input []byte
+	var err error
+	if inputStr == "-" || inputStr == "" {
+		input, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read stdin: %w", err)
+		}
+	} else {
+		input = []byte(inputStr)
+	}
+
+	// If empty input, allow by default
+	if len(input) == 0 || string(input) == "" {
+		result := schema.NewAllowResult()
+		return outputWorkflowResult(result)
+	}
+
+	// Use the event detector to parse and build the event
+	detector := event.NewDetector(nil) // nil = use real git provider
+	evt, err := detector.DetectFromRawInput(input)
+	if err != nil {
+		return fmt.Errorf("failed to detect event: %w", err)
+	}
+
+	// Override cwd if dir is specified
+	if dir != "" && evt.Cwd == "" {
+		evt.Cwd = dir
+	}
+	if evt.Cwd == "" {
+		evt.Cwd = dir
+	}
+
+	// Discover and run matching workflows
+	return runMatchingWorkflowsWithEvent(dir, evt)
+}
+
+// runMatchingWorkflowsWithEvent runs workflows with a pre-built event
+func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
+	// Discover workflows
+	workflowDir := filepath.Join(dir, ".github", "agent-workflows")
+	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {
+		// No workflows directory, allow by default
+		result := schema.NewAllowResult()
+		return outputWorkflowResult(result)
+	}
+
+	// Find all workflow files
+	var workflowFiles []string
+	err := filepath.Walk(workflowDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext == ".yml" || ext == ".yaml" {
+			workflowFiles = append(workflowFiles, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to scan workflows: %w", err)
+	}
+
+	if len(workflowFiles) == 0 {
+		// No workflows found, allow by default
+		result := schema.NewAllowResult()
+		return outputWorkflowResult(result)
+	}
+
+	// Load and match workflows
+	var matchingWorkflows []*schema.Workflow
+	for _, path := range workflowFiles {
+		wf, err := schema.LoadWorkflow(path)
+		if err != nil {
+			// Skip invalid workflows
+			continue
+		}
+
+		// Check if workflow matches the event
+		matcher := trigger.NewMatcher(wf)
+		if matcher.Match(evt) {
+			matchingWorkflows = append(matchingWorkflows, wf)
+		}
+	}
+
+	if len(matchingWorkflows) == 0 {
+		// No matching workflows, allow by default
+		result := schema.NewAllowResult()
+		return outputWorkflowResult(result)
+	}
+
+	// Run matching workflows
+	ctx := context.Background()
+	var finalResult *schema.WorkflowResult
+
+	for _, wf := range matchingWorkflows {
+		r := runner.NewRunner(wf, evt, dir)
+		result := r.RunWithBlocking(ctx)
+
+		// If any workflow denies, the final result is deny
+		if result.PermissionDecision == "deny" {
+			return outputWorkflowResult(result)
+		}
+
+		// Keep the last allow result
+		finalResult = result
+	}
+
+	if finalResult == nil {
+		finalResult = schema.NewAllowResult()
+	}
+
+	return outputWorkflowResult(finalResult)
 }
 
 // runMatchingWorkflows discovers and runs all matching workflows
