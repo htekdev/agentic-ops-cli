@@ -465,7 +465,7 @@ func TestDiscoverWalkError(t *testing.T) {
 	if err := os.Chmod(unreadableDir, 0000); err != nil {
 		t.Skip("Cannot test permission errors on this platform")
 	}
-	defer os.Chmod(unreadableDir, 0755) // cleanup
+	defer func() { _ = os.Chmod(unreadableDir, 0755) }() // cleanup
 
 	// Discover should return error when it cannot read a directory
 	_, err := Discover(tmpDir)

@@ -22,11 +22,11 @@ func TestVersionCommand(t *testing.T) {
 	versionCmd.Run(versionCmd, []string{})
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if !strings.Contains(output, "agentic-ops version") {
@@ -42,11 +42,11 @@ func TestTriggersCommand(t *testing.T) {
 
 	triggersCmd.Run(triggersCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	expectedTriggers := []string{"hooks", "tool", "file", "commit", "push"}
@@ -63,17 +63,17 @@ func TestDiscoverCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test with explicit dir flag
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	discoverCmd.Flags().Set("dir", tmpDir)
+	_ = discoverCmd.Flags().Set("dir", tmpDir)
 	err = discoverCmd.RunE(discoverCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -81,7 +81,7 @@ func TestDiscoverCommand(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if !strings.Contains(output, "Discovering workflows") {
@@ -96,10 +96,10 @@ func TestDiscoverCommandDefaultDir(t *testing.T) {
 	os.Stdout = w
 
 	// Reset flag to empty for default dir behavior
-	discoverCmd.Flags().Set("dir", "")
+	_ = discoverCmd.Flags().Set("dir", "")
 	err := discoverCmd.RunE(discoverCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -107,7 +107,7 @@ func TestDiscoverCommandDefaultDir(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if !strings.Contains(output, "Discovering workflows") {
@@ -146,15 +146,15 @@ steps:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	validateCmd.Flags().Set("file", workflowFile)
-	validateCmd.Flags().Set("dir", tmpDir)
+	_ = validateCmd.Flags().Set("file", workflowFile)
+	_ = validateCmd.Flags().Set("dir", tmpDir)
 	err = validateCmd.RunE(validateCmd, []string{})
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {

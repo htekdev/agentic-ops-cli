@@ -281,13 +281,13 @@ func (r *Runner) buildDenialWithLogs(results []StepResult) (logFile string, reas
 
 	// Build detailed reason message
 	var reasonBuilder strings.Builder
-	reasonBuilder.WriteString(fmt.Sprintf("Workflow '%s' blocked.\n\n", r.workflow.Name))
+	fmt.Fprintf(&reasonBuilder, "Workflow '%s' blocked.\n\n", r.workflow.Name)
 	reasonBuilder.WriteString("Failed steps:\n")
 	for _, result := range results {
 		if !result.Success {
-			reasonBuilder.WriteString(fmt.Sprintf("  • %s", result.Name))
+			fmt.Fprintf(&reasonBuilder, "  • %s", result.Name)
 			if result.Error != nil {
-				reasonBuilder.WriteString(fmt.Sprintf(": %v", result.Error))
+				fmt.Fprintf(&reasonBuilder, ": %v", result.Error)
 			}
 			reasonBuilder.WriteString("\n")
 			// Include brief output snippet (first 200 chars)
@@ -296,11 +296,11 @@ func (r *Runner) buildDenialWithLogs(results []StepResult) (logFile string, reas
 				if len(output) > 200 {
 					output = output[:200] + "..."
 				}
-				reasonBuilder.WriteString(fmt.Sprintf("    Output: %s\n", strings.ReplaceAll(output, "\n", " ")))
+				fmt.Fprintf(&reasonBuilder, "    Output: %s\n", strings.ReplaceAll(output, "\n", " "))
 			}
 		}
 	}
-	reasonBuilder.WriteString(fmt.Sprintf("\nFull logs: %s", logFile))
+	fmt.Fprintf(&reasonBuilder, "\nFull logs: %s", logFile)
 
 	return logFile, reasonBuilder.String()
 }
