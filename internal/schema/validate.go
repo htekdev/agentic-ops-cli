@@ -1,6 +1,7 @@
 package schema
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,9 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed workflow.schema.json
+var embeddedSchema []byte
 
 // ValidationError represents a validation error
 type ValidationError struct {
@@ -170,31 +174,10 @@ func ValidateWorkflowsInDir(dir string) *ValidationResult {
 	return result
 }
 
-// loadSchemaLoader loads the workflow schema
+// loadSchemaLoader loads the workflow schema from the embedded data
 func loadSchemaLoader() (gojsonschema.JSONLoader, error) {
-	// Try to find the schema file relative to the executable or working directory
-	possiblePaths := []string{
-		"schema/workflow.schema.json",
-		"./schema/workflow.schema.json",
-		"../schema/workflow.schema.json",
-		"../../schema/workflow.schema.json",
+	if len(embeddedSchema) == 0 {
+		return nil, fmt.Errorf("embedded schema is empty")
 	}
-
-	var schemaContent []byte
-	var lastErr error
-
-	for _, path := range possiblePaths {
-		content, err := os.ReadFile(path)
-		if err == nil {
-			schemaContent = content
-			break
-		}
-		lastErr = err
-	}
-
-	if schemaContent == nil {
-		return nil, fmt.Errorf("failed to load schema file from any of the standard locations: %w", lastErr)
-	}
-
-	return gojsonschema.NewBytesLoader(schemaContent), nil
+	return gojsonschema.NewBytesLoader(embeddedSchema), nil
 }

@@ -35,6 +35,44 @@ type OnConfig struct {
 	Push   *PushTrigger    `yaml:"push,omitempty" json:"push,omitempty"`
 }
 
+// UnmarshalYAML implements custom YAML unmarshaling for OnConfig
+// This handles the case where triggers are specified without properties (e.g., "commit:" with no sub-fields)
+// In YAML, this parses as nil, but we want it to be an empty struct to indicate "match all"
+func (o *OnConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// First, unmarshal into a map to see which keys exist
+	var rawMap map[string]interface{}
+	if err := unmarshal(&rawMap); err != nil {
+		return err
+	}
+
+	// Now unmarshal into a temporary struct to get actual values
+	type onConfigAlias OnConfig
+	var temp onConfigAlias
+	if err := unmarshal(&temp); err != nil {
+		return err
+	}
+
+	// Copy parsed values
+	*o = OnConfig(temp)
+
+	// Check for keys that exist but have nil values - these should be empty structs
+	if _, exists := rawMap["hooks"]; exists && o.Hooks == nil {
+		o.Hooks = &HooksTrigger{}
+	}
+	if _, exists := rawMap["file"]; exists && o.File == nil {
+		o.File = &FileTrigger{}
+	}
+	if _, exists := rawMap["commit"]; exists && o.Commit == nil {
+		o.Commit = &CommitTrigger{}
+	}
+	if _, exists := rawMap["push"]; exists && o.Push == nil {
+		o.Push = &PushTrigger{}
+	}
+	// Note: tool and tools require the "name" field, so empty values don't make sense
+
+	return nil
+}
+
 // HooksTrigger matches agent hook events
 type HooksTrigger struct {
 	Types []string `yaml:"types,omitempty" json:"types,omitempty"` // preToolUse, postToolUse

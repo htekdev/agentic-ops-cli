@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/htekdev/agentic-ops-cli/internal/discover"
 	"github.com/htekdev/agentic-ops-cli/internal/runner"
 	"github.com/htekdev/agentic-ops-cli/internal/schema"
 	"github.com/htekdev/agentic-ops-cli/internal/trigger"
@@ -56,7 +57,22 @@ var discoverCmd = &cobra.Command{
 			}
 		}
 		fmt.Printf("Discovering workflows in: %s\n", dir)
-		// TODO: Implement discovery
+
+		// Import discover package and call Discover
+		workflows, err := discoverWorkflows(dir)
+		if err != nil {
+			return fmt.Errorf("failed to discover workflows: %w", err)
+		}
+
+		if len(workflows) == 0 {
+			fmt.Println("No workflows found")
+			return nil
+		}
+
+		fmt.Printf("Found %d workflow(s):\n", len(workflows))
+		for _, wf := range workflows {
+			fmt.Printf("  - %s (%s)\n", wf.Name, wf.RelPath)
+		}
 		return nil
 	},
 }
@@ -405,6 +421,11 @@ func parseEventData(data map[string]interface{}) *schema.Event {
 	}
 	
 	return event
+}
+
+// discoverWorkflows finds all workflow files in a directory
+func discoverWorkflows(dir string) ([]discover.WorkflowFile, error) {
+	return discover.Discover(dir)
 }
 
 // findWorkflowFile finds a workflow file by name

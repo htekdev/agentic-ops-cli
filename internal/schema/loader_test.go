@@ -138,6 +138,33 @@ func TestLoadWorkflow_AllTriggers(t *testing.T) {
 }
 
 // ============================================================================
+// Empty Trigger Tests (YAML with just "commit:" no properties)
+// ============================================================================
+
+func TestLoadWorkflow_EmptyCommitTrigger(t *testing.T) {
+	workflow, err := LoadWorkflow("../../testdata/workflows/valid/empty-commit-trigger.yml")
+	if err != nil {
+		t.Fatalf("Failed to load workflow with empty commit trigger: %v", err)
+	}
+	if workflow.Name != "Empty Commit Trigger Test" {
+		t.Errorf("Expected name 'Empty Commit Trigger Test', got '%s'", workflow.Name)
+	}
+
+	// The key test: commit trigger should NOT be nil even though YAML has just "commit:"
+	if workflow.On.Commit == nil {
+		t.Error("Expected commit trigger to be non-nil for 'on: commit:' syntax")
+	}
+
+	// Other triggers should still be nil
+	if workflow.On.Hooks != nil {
+		t.Error("Expected hooks trigger to be nil")
+	}
+	if workflow.On.Push != nil {
+		t.Error("Expected push trigger to be nil")
+	}
+}
+
+// ============================================================================
 // IsBlocking Tests
 // ============================================================================
 
