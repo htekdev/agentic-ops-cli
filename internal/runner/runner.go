@@ -235,20 +235,20 @@ func (r *Runner) buildDenialWithLogs(results []StepResult) (logFile string, reas
 	var logContent strings.Builder
 
 	// Header
-	logContent.WriteString(fmt.Sprintf("Workflow: %s\n", r.workflow.Name))
-	logContent.WriteString(fmt.Sprintf("Description: %s\n", r.workflow.Description))
-	logContent.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC3339)))
+	fmt.Fprintf(&logContent, "Workflow: %s\n", r.workflow.Name)
+	fmt.Fprintf(&logContent, "Description: %s\n", r.workflow.Description)
+	fmt.Fprintf(&logContent, "Time: %s\n", time.Now().Format(time.RFC3339))
 	logContent.WriteString(strings.Repeat("=", 60) + "\n\n")
 
 	// Write each step's result
 	for _, result := range results {
-		logContent.WriteString(fmt.Sprintf("Step: %s\n", result.Name))
-		logContent.WriteString(fmt.Sprintf("Status: %s\n", map[bool]string{true: "✓ SUCCESS", false: "✗ FAILED"}[result.Success]))
+		fmt.Fprintf(&logContent, "Step: %s\n", result.Name)
+		fmt.Fprintf(&logContent, "Status: %s\n", map[bool]string{true: "✓ SUCCESS", false: "✗ FAILED"}[result.Success])
 		if result.Duration > 0 {
-			logContent.WriteString(fmt.Sprintf("Duration: %s\n", result.Duration.Round(time.Millisecond)))
+			fmt.Fprintf(&logContent, "Duration: %s\n", result.Duration.Round(time.Millisecond))
 		}
 		if result.Error != nil {
-			logContent.WriteString(fmt.Sprintf("Error: %v\n", result.Error))
+			fmt.Fprintf(&logContent, "Error: %v\n", result.Error)
 		}
 		if result.Output != "" {
 			logContent.WriteString("Output:\n")
@@ -270,7 +270,7 @@ func (r *Runner) buildDenialWithLogs(results []StepResult) (logFile string, reas
 		// Can't create temp file, return reason without log file
 		return "", fmt.Sprintf("workflow '%s' blocked due to step failures: %s", r.workflow.Name, strings.Join(failedSteps, ", "))
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	_, err = tmpFile.WriteString(logContent.String())
 	if err != nil {

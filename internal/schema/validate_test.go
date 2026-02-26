@@ -69,7 +69,7 @@ func TestValidateWorkflowsInDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create .github/agent-workflows directory
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
@@ -103,7 +103,7 @@ func TestValidateWorkflowsInDir_WithErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create .github/agent-workflows directory
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
@@ -140,7 +140,7 @@ func TestValidateWorkflowsInDir_NoWorkflowDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Validate the directory (should be valid - no workflows is not an error)
 	result := ValidateWorkflowsInDir(tmpDir)

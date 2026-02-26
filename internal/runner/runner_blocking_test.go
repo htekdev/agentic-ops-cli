@@ -207,6 +207,6 @@ func TestRunWithBlockingCreatesLogFile(t *testing.T) {
 		}
 
 		// Clean up
-		os.Remove(result.LogFile)
+		_ = os.Remove(result.LogFile)
 	}
 }
