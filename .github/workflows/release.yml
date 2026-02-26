@@ -38,8 +38,14 @@ jobs:
           # Linux AMD64
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/agentic-ops-linux-amd64 ./cmd/agentic-ops
           
+          # Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/agentic-ops-linux-arm64 ./cmd/agentic-ops
+          
           # Windows AMD64
           GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/agentic-ops-windows-amd64.exe ./cmd/agentic-ops
+          
+          # Windows ARM64
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/agentic-ops-windows-arm64.exe ./cmd/agentic-ops
 
       - name: Create checksums
         run: |
@@ -53,6 +59,8 @@ jobs:
             dist/agentic-ops-darwin-amd64
             dist/agentic-ops-darwin-arm64
             dist/agentic-ops-linux-amd64
+            dist/agentic-ops-linux-arm64
             dist/agentic-ops-windows-amd64.exe
+            dist/agentic-ops-windows-arm64.exe
             dist/checksums.txt
           generate_release_notes: true
