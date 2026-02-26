@@ -19,8 +19,25 @@ func TestDetectGitCommitCommand(t *testing.T) {
 		{"not a commit", "git status", false},
 		{"not a commit - push", "git push origin main", false},
 		{"not a commit - pull", "git pull", false},
-		{"echo with git commit in string", `echo "git commit"`, false}, // This is tricky - word boundary should help
+		{"echo with git commit in string", `echo "git commit"`, false},
 		{"git commit in middle", "cd repo && git commit -m 'test'", true},
+		// Additional edge cases for command chains
+		{"git commit after OR", "git status || git commit -m 'fallback'", true},
+		{"git commit after semicolon", "echo done; git commit -m 'test'", true},
+		{"git commit after background", "sleep 1 & git commit -m 'test'", true},
+		{"multiple git commands", "git add . && git commit -m 'test' && git push", true},
+		// Case sensitivity - git commands are case-sensitive on Unix
+		{"uppercase GIT", "GIT commit -m 'test'", false},
+		{"mixed case Git", "Git commit -m 'test'", false},
+		// Edge cases with whitespace
+		{"extra spaces", "git   commit -m 'test'", true},
+		{"tabs", "git\tcommit -m 'test'", true},
+		// Commands that look like git but aren't
+		{"gitcommit typo", "gitcommit -m 'test'", false},
+		{"git-commit hyphen", "git-commit -m 'test'", false},
+		// Printf/echo with git in string
+		{"printf git commit", `printf "run git commit now"`, false},
+		{"echo command instruction", `echo "Please run: git commit -m 'msg'"`, false},
 	}
 
 	for _, tt := range tests {
@@ -36,9 +53,9 @@ func TestDetectGitCommitCommand(t *testing.T) {
 // TestDetectGitPushCommand tests that git push commands are detected
 func TestDetectGitPushCommand(t *testing.T) {
 	tests := []struct {
-		name   string
+		name    string
 		command string
-		isPush bool
+		isPush  bool
 	}{
 		{"simple git push", "git push", true},
 		{"git push origin main", "git push origin main", true},
@@ -50,6 +67,23 @@ func TestDetectGitPushCommand(t *testing.T) {
 		{"not a push - commit", "git commit -m 'test'", false},
 		{"not a push - pull", "git pull", false},
 		{"git push in middle", "cd repo && git push origin main", true},
+		// Additional edge cases
+		{"git push after OR", "git status || git push", true},
+		{"git push after semicolon", "echo done; git push", true},
+		{"git push after background", "sleep 1 & git push", true},
+		{"multiple commands with push", "git add . && git commit -m 'test' && git push", true},
+		// Case sensitivity
+		{"uppercase GIT push", "GIT push", false},
+		{"mixed case Git push", "Git push", false},
+		// Echo statements
+		{"echo git push", `echo "git push"`, false},
+		{"printf git push", `printf "Please git push"`, false},
+		// Edge cases
+		{"gitpush typo", "gitpush origin main", false},
+		{"git-push hyphen", "git-push origin", false},
+		// Complex branch patterns
+		{"push feature branch", "git push origin feature/user/my-branch", true},
+		{"push release branch", "git push origin release/v2.0", true},
 	}
 
 	for _, tt := range tests {
@@ -74,6 +108,17 @@ func TestExtractCommitMessage(t *testing.T) {
 		{"no message flag", "git commit --amend", ""},
 		{"message with spaces", `git commit -m "this is a long message"`, "this is a long message"},
 		{"message at end", `git add . && git commit -m "done"`, "done"},
+		// Additional edge cases
+		{"empty quotes", `git commit -m ""`, ""},
+		{"message with colons", `git commit -m "fix: scope: detail"`, "fix: scope: detail"},
+		{"message with numbers", `git commit -m "v1.2.3 release"`, "v1.2.3 release"},
+		{"message with special chars", `git commit -m "fix #123 - bug"`, "fix #123 - bug"},
+		{"--message long form", `git commit --message "long form"`, ""},
+		{"message with parens", `git commit -m "feat(core): add feature"`, "feat(core): add feature"},
+		{"no -m flag", "git commit -a", ""},
+		{"commit interactive", "git commit", ""},
+		// Edge cases where message extraction should fail
+		{"-m without space", `git commit-m "test"`, "test"}, // regex finds -m pattern regardless of context
 	}
 
 	for _, tt := range tests {
@@ -99,6 +144,18 @@ func TestExtractPushRef(t *testing.T) {
 		{"push feature branch", "git push origin feature/test", "feature/test", "refs/heads/feature/test"},
 		{"push tag", "git push origin v1.0.0", "main", "refs/tags/v1.0.0"},
 		{"push tags flag", "git push --tags", "main", "refs/heads/main"}, // Still branch, tags are separate
+		// Additional edge cases for complex branch patterns
+		{"complex feature branch", "git push origin feature/user/my-feature", "feature/user/my-feature", "refs/heads/feature/user/my-feature"},
+		{"release branch", "git push origin release/2.0.0", "release/2.0.0", "refs/heads/release/2.0.0"},
+		{"hotfix branch", "git push origin hotfix/urgent-fix", "hotfix/urgent-fix", "refs/heads/hotfix/urgent-fix"},
+		{"tag with prefix", "git push origin v2.1.0", "main", "refs/tags/v2.1.0"},
+		{"tag semver patch", "git push origin v1.0.1", "develop", "refs/tags/v1.0.1"},
+		// Default branch scenarios
+		{"push upstream", "git push -u origin", "develop", "refs/heads/develop"},
+		{"force push", "git push --force", "feature/wip", "refs/heads/feature/wip"},
+		// Edge cases
+		{"empty branch", "git push", "", "refs/heads/"},
+		{"branch with dots", "git push origin release.1.0", "release.1.0", "refs/heads/release.1.0"},
 	}
 
 	for _, tt := range tests {

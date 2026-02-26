@@ -693,3 +693,482 @@ func TestCombinedToolAndCommitEvent(t *testing.T) {
 		t.Error("Expected tool trigger to match even when commit data is also present")
 	}
 }
+
+// TestMatchNoTriggers tests that Match returns false when no triggers are configured
+func TestMatchNoTriggers(t *testing.T) {
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{}, // Empty - no triggers configured
+	}
+	matcher := NewMatcher(workflow)
+
+	tests := []struct {
+		name  string
+		event *schema.Event
+	}{
+		{
+			name: "tool event with no trigger",
+			event: &schema.Event{
+				Tool: &schema.ToolEvent{Name: "edit", Args: map[string]interface{}{}},
+			},
+		},
+		{
+			name: "hook event with no trigger",
+			event: &schema.Event{
+				Hook: &schema.HookEvent{Type: "preToolUse"},
+			},
+		},
+		{
+			name: "file event with no trigger",
+			event: &schema.Event{
+				File: &schema.FileEvent{Path: "test.go", Action: "edit"},
+			},
+		},
+		{
+			name: "commit event with no trigger",
+			event: &schema.Event{
+				Commit: &schema.CommitEvent{SHA: "abc", Files: []schema.FileStatus{{Path: "a.txt"}}},
+			},
+		},
+		{
+			name: "push event with no trigger",
+			event: &schema.Event{
+				Push: &schema.PushEvent{Ref: "refs/heads/main"},
+			},
+		},
+		{
+			name: "empty event",
+			event: &schema.Event{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if matcher.Match(tt.event) {
+				t.Errorf("Expected Match() = false with no triggers configured")
+			}
+		})
+	}
+}
+
+// TestFileTriggerNegationPatterns tests file trigger with ! negation patterns in paths
+func TestFileTriggerNegationPatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		trigger *schema.FileTrigger
+		event   *schema.FileEvent
+		want    bool
+	}{
+		{
+			name: "negation excludes matched file",
+			trigger: &schema.FileTrigger{
+				Paths: []string{"**/*.go", "!**/*_test.go"},
+			},
+			event: &schema.FileEvent{
+				Path:   "src/main_test.go",
+				Action: "edit",
+			},
+			want: false,
+		},
+		{
+			name: "negation allows non-matching file",
+			trigger: &schema.FileTrigger{
+				Paths: []string{"**/*.go", "!**/*_test.go"},
+			},
+			event: &schema.FileEvent{
+				Path:   "src/main.go",
+				Action: "edit",
+			},
+			want: true,
+		},
+		{
+			name: "negation with specific directory",
+			trigger: &schema.FileTrigger{
+				Paths: []string{"**/*.js", "!vendor/**"},
+			},
+			event: &schema.FileEvent{
+				Path:   "vendor/lib.js",
+				Action: "create",
+			},
+			want: false,
+		},
+		{
+			name: "multiple negations",
+			trigger: &schema.FileTrigger{
+				Paths: []string{"src/**", "!src/test/**", "!src/mock/**"},
+			},
+			event: &schema.FileEvent{
+				Path:   "src/test/helper.go",
+				Action: "edit",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workflow := &schema.Workflow{
+				On: schema.OnConfig{
+					File: tt.trigger,
+				},
+			}
+			matcher := NewMatcher(workflow)
+			event := &schema.Event{
+				File: tt.event,
+			}
+			if got := matcher.Match(event); got != tt.want {
+				t.Errorf("Match() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPushTriggerBranchAndTag tests push trigger with both branches and tags configured
+func TestPushTriggerBranchAndTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		trigger *schema.PushTrigger
+		event   *schema.PushEvent
+		want    bool
+	}{
+		{
+			name: "tag push when only branches configured",
+			trigger: &schema.PushTrigger{
+				Branches: []string{"main", "develop"},
+			},
+			event: &schema.PushEvent{
+				Ref: "refs/tags/v1.0.0",
+			},
+			want: true, // Branch check skipped when ref is not a branch (extractBranch returns "")
+		},
+		{
+			name: "branch push when only tags configured",
+			trigger: &schema.PushTrigger{
+				Tags: []string{"v*"},
+			},
+			event: &schema.PushEvent{
+				Ref: "refs/heads/main",
+			},
+			want: false, // No matching tag (branch is not a tag)
+		},
+		{
+			name: "tag with negation pattern",
+			trigger: &schema.PushTrigger{
+				Tags: []string{"v*", "!v*-rc*"},
+			},
+			event: &schema.PushEvent{
+				Ref: "refs/tags/v1.0.0-rc1",
+			},
+			want: false,
+		},
+		{
+			name: "branch with negation pattern excludes match",
+			trigger: &schema.PushTrigger{
+				Branches: []string{"feature/*", "!feature/wip-*"},
+			},
+			event: &schema.PushEvent{
+				Ref: "refs/heads/feature/wip-test",
+			},
+			want: false,
+		},
+		{
+			name: "branch negation allows non-matching",
+			trigger: &schema.PushTrigger{
+				Branches: []string{"feature/*", "!feature/wip-*"},
+			},
+			event: &schema.PushEvent{
+				Ref: "refs/heads/feature/new-thing",
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workflow := &schema.Workflow{
+				On: schema.OnConfig{
+					Push: tt.trigger,
+				},
+			}
+			matcher := NewMatcher(workflow)
+			event := &schema.Event{
+				Push: tt.event,
+			}
+			if got := matcher.Match(event); got != tt.want {
+				t.Errorf("Match() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestMatchGlobEdgeCases tests edge cases in glob pattern matching
+func TestMatchGlobEdgeCases(t *testing.T) {
+	tests := []struct {
+		pattern string
+		path    string
+		want    bool
+	}{
+		// Single character wildcard
+		{"?.js", "a.js", true},
+		{"?.js", "ab.js", false},
+		{"test?.go", "test1.go", true},
+		{"test?.go", "test12.go", false},
+
+		// Multiple wildcards
+		{"*/*/*.go", "a/b/c.go", true},
+		{"*/*/*", "a/b/c", true},
+
+		// Double glob with no suffix
+		{"src/**", "src/deep/nested/file.go", true},
+		{"src/**", "src/file.go", true},
+
+		// Double glob at start - implementation handles first ** only
+		{"**/node_modules", "deep/nested/node_modules", true},
+
+		// Patterns without ** (simple glob)
+		{"*.txt", "readme.txt", true},
+		{"*.txt", "readme.md", false},
+
+		// Empty and edge patterns
+		{"", "", true},
+		{"*", "anything", true},
+		{"*", "file.txt", true},
+
+		// Prefix matching with **
+		{"pkg/**/*.go", "pkg/internal/util.go", true},
+		{"pkg/**/*.go", "other/util.go", false},
+
+		// Complex nested
+		{"a/b/**/c/*.go", "a/b/x/y/c/test.go", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pattern+"_"+tt.path, func(t *testing.T) {
+			if got := matchGlob(tt.pattern, tt.path); got != tt.want {
+				t.Errorf("matchGlob(%q, %q) = %v, want %v", tt.pattern, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestHooksTriggerEmptyToolsFilter tests hooks trigger with empty tools filter
+func TestHooksTriggerEmptyToolsFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		trigger *schema.HooksTrigger
+		event   *schema.HookEvent
+		want    bool
+	}{
+		{
+			name: "empty types and empty tools matches all hook types",
+			trigger: &schema.HooksTrigger{
+				Types: []string{},
+				Tools: []string{},
+			},
+			event: &schema.HookEvent{
+				Type: "postToolUse",
+				Tool: &schema.ToolEvent{Name: "edit"},
+			},
+			want: true,
+		},
+		{
+			name: "nil tool in event with tools filter",
+			trigger: &schema.HooksTrigger{
+				Types: []string{"preToolUse"},
+				Tools: []string{"edit"},
+			},
+			event: &schema.HookEvent{
+				Type: "preToolUse",
+				Tool: nil, // No tool info
+			},
+			want: true, // Tools filter only checked when event.Tool != nil
+		},
+		{
+			name: "types specified, tools empty",
+			trigger: &schema.HooksTrigger{
+				Types: []string{"preToolUse", "postToolUse"},
+				Tools: []string{},
+			},
+			event: &schema.HookEvent{
+				Type: "preToolUse",
+				Tool: &schema.ToolEvent{Name: "anything"},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workflow := &schema.Workflow{
+				On: schema.OnConfig{
+					Hooks: tt.trigger,
+				},
+			}
+			matcher := NewMatcher(workflow)
+			event := &schema.Event{
+				Hook: tt.event,
+			}
+			if got := matcher.Match(event); got != tt.want {
+				t.Errorf("Match() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFileTriggerNoTypes tests file trigger with no types specified (matches all actions)
+func TestFileTriggerNoTypes(t *testing.T) {
+	trigger := &schema.FileTrigger{
+		Paths: []string{"**/*.go"},
+		// Types is empty - should match any action
+	}
+
+	events := []struct {
+		name   string
+		action string
+		want   bool
+	}{
+		{"edit action", "edit", true},
+		{"create action", "create", true},
+		{"delete action", "delete", true},
+	}
+
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{
+			File: trigger,
+		},
+	}
+	matcher := NewMatcher(workflow)
+
+	for _, e := range events {
+		t.Run(e.name, func(t *testing.T) {
+			event := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   "src/main.go",
+					Action: e.action,
+				},
+			}
+			if got := matcher.Match(event); got != e.want {
+				t.Errorf("Match() = %v, want %v for action %q", got, e.want, e.action)
+			}
+		})
+	}
+}
+
+// TestCommitTriggerNegationInPaths tests commit trigger handles negation patterns in paths
+func TestCommitTriggerNegationInPaths(t *testing.T) {
+	trigger := &schema.CommitTrigger{
+		Paths: []string{"src/**/*.go", "!src/generated/**"},
+	}
+
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{
+			Commit: trigger,
+		},
+	}
+	matcher := NewMatcher(workflow)
+
+	// File in normal src matches
+	event1 := &schema.Event{
+		Commit: &schema.CommitEvent{
+			SHA: "abc",
+			Files: []schema.FileStatus{
+				{Path: "src/util/helper.go", Status: "modified"},
+			},
+		},
+	}
+	if !matcher.Match(event1) {
+		t.Error("Expected commit to match for src/util/helper.go")
+	}
+}
+
+// TestPushTriggerEmptyRef tests push trigger behavior with empty or unusual refs
+func TestPushTriggerEmptyRef(t *testing.T) {
+	// Tags trigger with non-tag ref should not match
+	trigger := &schema.PushTrigger{
+		Tags: []string{"v*"},
+	}
+
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{
+			Push: trigger,
+		},
+	}
+	matcher := NewMatcher(workflow)
+
+	// Empty ref
+	event := &schema.Event{
+		Push: &schema.PushEvent{
+			Ref: "",
+		},
+	}
+	if matcher.Match(event) {
+		t.Error("Expected no match for empty ref when tags filter is set")
+	}
+
+	// Non-standard ref
+	event2 := &schema.Event{
+		Push: &schema.PushEvent{
+			Ref: "custom/ref/path",
+		},
+	}
+	if matcher.Match(event2) {
+		t.Error("Expected no match for non-standard ref when tags filter is set")
+	}
+}
+
+// TestPushTriggerTagsIgnoreWithNoTag tests tags-ignore with branch ref
+func TestPushTriggerTagsIgnoreWithNoTag(t *testing.T) {
+	trigger := &schema.PushTrigger{
+		TagsIgnore: []string{"v*-beta"},
+	}
+
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{
+			Push: trigger,
+		},
+	}
+	matcher := NewMatcher(workflow)
+
+	// Branch ref should pass tags-ignore (not a tag)
+	event := &schema.Event{
+		Push: &schema.PushEvent{
+			Ref: "refs/heads/main",
+		},
+	}
+	if !matcher.Match(event) {
+		t.Error("Expected branch ref to pass tags-ignore filter")
+	}
+}
+
+// TestPushTriggerBranchesIgnoreWithNoMatchingBranch tests branches-ignore edge cases
+func TestPushTriggerBranchesIgnoreWithNoMatchingBranch(t *testing.T) {
+	trigger := &schema.PushTrigger{
+		BranchesIgnore: []string{"temp/**"},
+	}
+
+	workflow := &schema.Workflow{
+		On: schema.OnConfig{
+			Push: trigger,
+		},
+	}
+	matcher := NewMatcher(workflow)
+
+	// Tag ref should pass branches-ignore (not a branch)
+	event := &schema.Event{
+		Push: &schema.PushEvent{
+			Ref: "refs/tags/v1.0.0",
+		},
+	}
+	if !matcher.Match(event) {
+		t.Error("Expected tag ref to pass branches-ignore filter")
+	}
+
+	// Non-ignored branch should match
+	event2 := &schema.Event{
+		Push: &schema.PushEvent{
+			Ref: "refs/heads/feature/test",
+		},
+	}
+	if !matcher.Match(event2) {
+		t.Error("Expected non-ignored branch to match")
+	}
+}

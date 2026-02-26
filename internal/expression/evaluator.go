@@ -10,10 +10,11 @@ import (
 
 // Context holds the evaluation context for expressions
 type Context struct {
-	Event     map[string]interface{}
-	Env       map[string]string
-	Steps     map[string]StepContext
-	Functions map[string]Function
+	Event            map[string]interface{}
+	Env              map[string]string
+	Steps            map[string]StepContext
+	Functions        map[string]Function
+	ContextFunctions map[string]ContextFunction
 }
 
 // StepContext holds the output of a previous step
@@ -25,13 +26,17 @@ type StepContext struct {
 // Function represents a built-in function
 type Function func(args ...interface{}) (interface{}, error)
 
+// ContextFunction represents a built-in function that needs context access
+type ContextFunction func(ctx *Context, args ...interface{}) (interface{}, error)
+
 // NewContext creates a new evaluation context
 func NewContext() *Context {
 	ctx := &Context{
-		Event:     make(map[string]interface{}),
-		Env:       make(map[string]string),
-		Steps:     make(map[string]StepContext),
-		Functions: make(map[string]Function),
+		Event:            make(map[string]interface{}),
+		Env:              make(map[string]string),
+		Steps:            make(map[string]StepContext),
+		Functions:        make(map[string]Function),
+		ContextFunctions: make(map[string]ContextFunction),
 	}
 	// Register built-in functions
 	ctx.Functions["contains"] = builtinContains
@@ -42,9 +47,10 @@ func NewContext() *Context {
 	ctx.Functions["toJSON"] = builtinToJSON
 	ctx.Functions["fromJSON"] = builtinFromJSON
 	ctx.Functions["always"] = builtinAlways
-	ctx.Functions["success"] = builtinSuccess
-	ctx.Functions["failure"] = builtinFailure
-	ctx.Functions["cancelled"] = builtinCancelled
+	// Register context-aware functions
+	ctx.ContextFunctions["success"] = builtinSuccess
+	ctx.ContextFunctions["failure"] = builtinFailure
+	ctx.ContextFunctions["cancelled"] = builtinCancelled
 	return ctx
 }
 
@@ -275,6 +281,11 @@ func (e *evaluator) finishCall(name string) (interface{}, error) {
 
 	if !e.match(TokenRightParen) {
 		return nil, fmt.Errorf("expected ')' after arguments")
+	}
+
+	// Check for context-aware functions first
+	if ctxFn, ok := e.ctx.ContextFunctions[name]; ok {
+		return ctxFn(e.ctx, args...)
 	}
 
 	fn, ok := e.ctx.Functions[name]
@@ -595,16 +606,32 @@ func builtinAlways(args ...interface{}) (interface{}, error) {
 	return true, nil
 }
 
-func builtinSuccess(args ...interface{}) (interface{}, error) {
-	// TODO: Implement based on step outcomes
+func builtinSuccess(ctx *Context, args ...interface{}) (interface{}, error) {
+	// success() returns true if no previous steps have failed or been cancelled
+	for _, step := range ctx.Steps {
+		if step.Outcome == "failure" || step.Outcome == "cancelled" {
+			return false, nil
+		}
+	}
 	return true, nil
 }
 
-func builtinFailure(args ...interface{}) (interface{}, error) {
-	// TODO: Implement based on step outcomes
+func builtinFailure(ctx *Context, args ...interface{}) (interface{}, error) {
+	// failure() returns true if any previous step has failed
+	for _, step := range ctx.Steps {
+		if step.Outcome == "failure" {
+			return true, nil
+		}
+	}
 	return false, nil
 }
 
-func builtinCancelled(args ...interface{}) (interface{}, error) {
+func builtinCancelled(ctx *Context, args ...interface{}) (interface{}, error) {
+	// cancelled() returns true if any previous step has been cancelled
+	for _, step := range ctx.Steps {
+		if step.Outcome == "cancelled" {
+			return true, nil
+		}
+	}
 	return false, nil
 }
