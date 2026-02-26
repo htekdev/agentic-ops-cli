@@ -1318,7 +1318,7 @@ func TestStepWithLocalUses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create action.yml
 	actionYml := `
@@ -1392,7 +1392,7 @@ func TestLocalActionWithValidActionYml(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create action.yml with shell-based runs
 	actionYml := `name: Test Shell Action
@@ -1436,7 +1436,7 @@ func TestActionWithCompositeSteps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create action.yml with composite steps
 	actionYml := `name: Composite Test Action
@@ -1481,7 +1481,7 @@ func TestActionWithInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create action.yml with inputs
 	var runCmd string
@@ -1537,7 +1537,7 @@ func TestActionYamlAlternativeFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create action.yaml (not .yml)
 	actionYaml := `name: YAML Extension Action
@@ -1578,7 +1578,7 @@ func TestActionMissingMetadataFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflow := &schema.Workflow{
 		Name: "test-no-metadata-action",
@@ -1618,7 +1618,7 @@ func TestActionInvalidYaml(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create invalid YAML
 	invalidYml := `name: Invalid Action
@@ -1663,7 +1663,7 @@ func TestActionUnsupportedType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create docker-based action (unsupported)
 	dockerActionYml := `name: Docker Action
@@ -1709,7 +1709,7 @@ func TestActionShellWithNoRunCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create shell action with no run command
 	noRunActionYml := `name: No Run Action
@@ -1754,7 +1754,7 @@ func TestActionCompositeNoStepsOrMain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create composite action with no steps
 	emptyCompositeYml := `name: Empty Composite
@@ -1795,7 +1795,7 @@ func TestActionWithExpressionsInInputs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	var runCmd string
 	if runtime.GOOS == "windows" {
@@ -1851,7 +1851,7 @@ func TestActionWithTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	var sleepCmd string
 	if runtime.GOOS == "windows" {
@@ -2180,3 +2180,4 @@ func TestRunWithBlockingMixedResults(t *testing.T) {
 		_ = os.Remove(result.LogFile)
 	}
 }
+
