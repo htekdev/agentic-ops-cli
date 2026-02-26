@@ -242,7 +242,7 @@ func TestRunMatchingWorkflows_NoWorkflowsDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test that empty event returns allow
 	// Note: We can't easily test runMatchingWorkflows directly as it writes to stdout
@@ -260,7 +260,7 @@ func TestFindWorkflowFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	workflowDir := filepath.Join(tmpDir, ".github", "agent-workflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
@@ -295,3 +295,4 @@ steps:
 		t.Error("Expected to not find workflow 'nonexistent'")
 	}
 }
+
