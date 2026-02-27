@@ -1,37 +1,92 @@
-# agentic-ops-cli
+# agentic-ops
 
-Command-line interface for the [agentic-ops](https://github.com/htekdev/agentic-ops) local agent workflow engine.
+Local workflow engine for agentic DevOps - run GitHub Actions-like workflows triggered by Copilot agent hooks.
 
 ## Overview
 
-`agentic-ops-cli` is a Go CLI that discovers, validates, and executes local workflows for AI agents. It provides a GitHub Actions-like experience for defining agent governance gates.
+`agentic-ops` lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
+
+- **Block** dangerous edits in real-time (e.g., .env file modifications)
+- **Lint** code as the agent writes it
+- **Validate** configurations before commit
+- **Run security scans** before code leaves the local machine
 
 ## Installation
 
-### Using Go
+### npm (Recommended)
+
+```bash
+npm install -g agentic-ops
+```
+
+### Go
 
 ```bash
 go install github.com/htekdev/agentic-ops-cli/cmd/agentic-ops@latest
+```
+
+### Install Script (Unix)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/htekdev/agentic-ops-cli/main/scripts/install.sh | sh
+```
+
+### Install Script (Windows)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/htekdev/agentic-ops-cli/main/scripts/install.ps1 | iex
 ```
 
 ### Download Binary
 
 Download pre-built binaries from the [Releases](https://github.com/htekdev/agentic-ops-cli/releases) page.
 
+## Quick Start
+
+```bash
+# Initialize agentic-ops for your repository
+cd your-project
+agentic-ops init
+
+# Test a workflow with a mock event
+agentic-ops test --event commit --workflow lint.yml
+
+# Discover workflows in the current directory
+agentic-ops discover
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `init` | Initialize agentic-ops for a repository |
+| `discover` | List workflows in the current directory |
+| `validate` | Validate workflow YAML files |
+| `test` | Test a workflow with a mock event |
+| `run` | Run workflows (used by hooks) |
+| `triggers` | List available trigger types |
+| `version` | Show version information |
+
 ## Usage
 
 ```bash
+# Initialize a repository (creates .github/agent-workflows/ and .copilot/hooks.json)
+agentic-ops init
+
 # Discover workflows in the current directory
 agentic-ops discover
 
 # Validate workflow files
 agentic-ops validate
 
-# Run workflows for an event (used by hooks)
-agentic-ops run --event '{"hook":{"type":"preToolUse","tool":{"name":"edit"}}}'
+# Test a workflow with a mock commit event
+agentic-ops test --event commit --path src/app.ts
 
-# Run a specific workflow
-agentic-ops run --workflow my-workflow --event '{"file":{"path":"src/main.ts"}}'
+# Test a workflow with a mock file event
+agentic-ops test --event file --action edit --path src/app.ts
+
+# Run workflows for an event (used by hooks)
+agentic-ops run --raw --dir .
 ```
 
 ## Workflow Syntax
